@@ -1,0 +1,33 @@
+# Panel público con HTTPS automático (Let's Encrypt) y usuario/contraseña.
+{$PANEL_DOMAIN} {
+	encode gzip
+	basic_auth {
+		{$PANEL_USER} {$PANEL_PASSWORD_HASH}
+	}
+	reverse_proxy panel:8080
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+}
+
+# Interfaz de Flink en SOLO LECTURA (opcional, si FLINK_DOMAIN está definido).
+# Flink ya tiene desactivados subir jars, cancelar y reescalar (web.*.enable: false) y, además,
+# aquí solo se dejan pasar GET/HEAD: nadie puede enviar, parar ni modificar jobs por la API REST.
+{$FLINK_DOMAIN:flink.localhost} {
+	encode gzip
+	basic_auth {
+		{$PANEL_USER} {$PANEL_PASSWORD_HASH}
+	}
+	@write not method GET HEAD
+	respond @write "Solo lectura" 403
+	reverse_proxy jobmanager:8081
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+}

@@ -1,0 +1,1202 @@
+{
+  "datasets": [
+    {
+      "name": "kpi",
+      "displayName": "kpi",
+      "queryLines": [
+        "SELECT dt, date_format(dt, 'dd/MM/yyyy') AS fecha, round(sum(ventas_netas), 2) AS ventas,\n",
+        "  sum(tickets) AS tickets, sum(unidades) AS unidades, round(sum(ventas_netas) / sum(tickets), 2) AS ticket_medio,\n",
+        "  count(*) AS tiendas\n",
+        "FROM databrick_graupel_demo.retail_demo.resumen_tienda WHERE dt = (SELECT max(dt) FROM databrick_graupel_demo.retail_demo.resumen_tienda) GROUP BY dt"
+      ]
+    },
+    {
+      "name": "top_tiendas",
+      "displayName": "top_tiendas",
+      "queryLines": [
+        "SELECT tienda_id || ' · ' || tienda AS tienda, region, ventas_netas AS ventas\n",
+        "FROM databrick_graupel_demo.retail_demo.resumen_tienda WHERE dt = (SELECT max(dt) FROM databrick_graupel_demo.retail_demo.resumen_tienda)\n",
+        "ORDER BY ventas_netas DESC LIMIT 15"
+      ]
+    },
+    {
+      "name": "tiendas",
+      "displayName": "tiendas",
+      "queryLines": [
+        "SELECT tienda_id, tienda, ciudad, region, formato, ventas_netas, tickets, ticket_medio, top3_productos\n",
+        "FROM databrick_graupel_demo.retail_demo.resumen_tienda WHERE dt = (SELECT max(dt) FROM databrick_graupel_demo.retail_demo.resumen_tienda)"
+      ]
+    },
+    {
+      "name": "region",
+      "displayName": "region",
+      "queryLines": [
+        "SELECT region, ventas_netas AS ventas, tickets, tiendas\n",
+        "FROM databrick_graupel_demo.retail_demo.resumen_region WHERE dt = (SELECT max(dt) FROM databrick_graupel_demo.retail_demo.resumen_region)"
+      ]
+    },
+    {
+      "name": "categoria",
+      "displayName": "categoria",
+      "queryLines": [
+        "SELECT categoria, ventas_netas AS ventas, unidades\n",
+        "FROM databrick_graupel_demo.retail_demo.resumen_categoria WHERE dt = (SELECT max(dt) FROM databrick_graupel_demo.retail_demo.resumen_categoria)"
+      ]
+    },
+    {
+      "name": "calidad",
+      "displayName": "calidad",
+      "queryLines": [
+        "SELECT metrica, valor\n",
+        "FROM databrick_graupel_demo.retail_demo.calidad_datos WHERE dt = (SELECT max(dt) FROM databrick_graupel_demo.retail_demo.calidad_datos)"
+      ]
+    },
+    {
+      "name": "tienda_producto",
+      "displayName": "tienda_producto",
+      "queryLines": [
+        "SELECT tienda_id || ' · ' || tienda AS tienda, producto, categoria, unidades, tickets,\n",
+        "  ventas_netas AS ventas\n",
+        "FROM databrick_graupel_demo.retail_demo.ventas_tienda_producto WHERE dt = (SELECT max(dt) FROM databrick_graupel_demo.retail_demo.ventas_tienda_producto)"
+      ]
+    },
+    {
+      "name": "historico",
+      "displayName": "historico",
+      "queryLines": [
+        "SELECT dt, round(sum(ventas_netas), 2) AS ventas, sum(tickets) AS tickets,\n",
+        "  round(sum(ventas_netas) / sum(tickets), 2) AS ticket_medio\n",
+        "FROM databrick_graupel_demo.retail_demo.resumen_tienda GROUP BY dt"
+      ]
+    },
+    {
+      "name": "historico_region",
+      "displayName": "historico_region",
+      "queryLines": [
+        "SELECT dt, region, ventas_netas AS ventas FROM databrick_graupel_demo.retail_demo.resumen_region"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "ayer",
+      "displayName": "Ayer",
+      "layout": [
+        {
+          "widget": {
+            "name": "titulo",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# ¿Cuánto vendió ayer cada tienda y de qué productos?\n",
+                "Último día cargado por el job *Retail 2 · ETL diario*. 400 tiendas · datos sintéticos."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_fecha",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "MAX(`fecha`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Día"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Día"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k_ventas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Ventas netas (€)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ventas netas (€)"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k_tickets",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`tickets`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Tickets"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Tickets"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k_ticket_medio",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ticket_medio`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Ticket medio (€)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ticket medio (€)"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k_unidades",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "kpi",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`unidades`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Unidades"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Unidades"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "b_top",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "top_tiendas",
+                  "fields": [
+                    {
+                      "name": "tienda",
+                      "expression": "`tienda`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Ventas netas (€)"
+                },
+                "y": {
+                  "fieldName": "tienda",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "Tienda"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top 15 tiendas"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "b_region",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "region",
+                  "fields": [
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "region",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "Región"
+                },
+                "y": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Ventas netas (€)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ventas por región"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "p_cat",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "categoria",
+                  "fields": [
+                    {
+                      "name": "categoria",
+                      "expression": "`categoria`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Ventas netas (€)"
+                },
+                "color": {
+                  "fieldName": "categoria",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "categoria"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ventas por categoría"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 3,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "b_calidad",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "calidad",
+                  "fields": [
+                    {
+                      "name": "metrica",
+                      "expression": "`metrica`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`valor`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Líneas"
+                },
+                "y": {
+                  "fieldName": "metrica",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "Métrica"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Calidad de datos (líneas)"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 13,
+            "width": 3,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "t_tiendas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "tiendas",
+                  "fields": [
+                    {
+                      "name": "tienda_id",
+                      "expression": "`tienda_id`"
+                    },
+                    {
+                      "name": "tienda",
+                      "expression": "`tienda`"
+                    },
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    },
+                    {
+                      "name": "formato",
+                      "expression": "`formato`"
+                    },
+                    {
+                      "name": "ventas_netas",
+                      "expression": "`ventas_netas`"
+                    },
+                    {
+                      "name": "tickets",
+                      "expression": "`tickets`"
+                    },
+                    {
+                      "name": "ticket_medio",
+                      "expression": "`ticket_medio`"
+                    },
+                    {
+                      "name": "top3_productos",
+                      "expression": "`top3_productos`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "tienda_id",
+                    "displayName": "Id"
+                  },
+                  {
+                    "fieldName": "tienda",
+                    "displayName": "Tienda"
+                  },
+                  {
+                    "fieldName": "region",
+                    "displayName": "Región"
+                  },
+                  {
+                    "fieldName": "formato",
+                    "displayName": "Formato"
+                  },
+                  {
+                    "fieldName": "ventas_netas",
+                    "displayName": "Ventas netas (€)"
+                  },
+                  {
+                    "fieldName": "tickets",
+                    "displayName": "Tickets"
+                  },
+                  {
+                    "fieldName": "ticket_medio",
+                    "displayName": "Ticket medio"
+                  },
+                  {
+                    "fieldName": "top3_productos",
+                    "displayName": "Top 3 productos"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Las 400 tiendas"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 6,
+            "height": 10
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "detalle",
+      "displayName": "Detalle por tienda",
+      "layout": [
+        {
+          "widget": {
+            "name": "titulo2",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# ¿Qué vendió ayer esta tienda?\n",
+                "Elige una tienda (sin selección: toda la cadena)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_tienda",
+            "queries": [
+              {
+                "name": "f_tienda_producto",
+                "query": {
+                  "datasetName": "tienda_producto",
+                  "fields": [
+                    {
+                      "name": "tienda",
+                      "expression": "`tienda`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "tienda",
+                    "displayName": "Tienda",
+                    "queryName": "f_tienda_producto"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Tienda"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k2_ventas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "tienda_producto",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Ventas netas (€)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ventas netas (€)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k2_unidades",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "tienda_producto",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`unidades`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Unidades"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Unidades"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k2_refs",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "tienda_producto",
+                  "fields": [
+                    {
+                      "name": "valor",
+                      "expression": "COUNT(DISTINCT `producto`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valor",
+                  "displayName": "Referencias vendidas"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Referencias vendidas"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "b2_prod",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "tienda_producto",
+                  "fields": [
+                    {
+                      "name": "producto",
+                      "expression": "`producto`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Ventas netas (€)"
+                },
+                "y": {
+                  "fieldName": "producto",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "Producto"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top productos"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "p2_cat",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "tienda_producto",
+                  "fields": [
+                    {
+                      "name": "categoria",
+                      "expression": "`categoria`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Ventas netas (€)"
+                },
+                "color": {
+                  "fieldName": "categoria",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "categoria"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ventas por categoría"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 3,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "t2_det",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "tienda_producto",
+                  "fields": [
+                    {
+                      "name": "tienda",
+                      "expression": "`tienda`"
+                    },
+                    {
+                      "name": "producto",
+                      "expression": "`producto`"
+                    },
+                    {
+                      "name": "categoria",
+                      "expression": "`categoria`"
+                    },
+                    {
+                      "name": "unidades",
+                      "expression": "`unidades`"
+                    },
+                    {
+                      "name": "tickets",
+                      "expression": "`tickets`"
+                    },
+                    {
+                      "name": "ventas",
+                      "expression": "`ventas`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "tienda",
+                    "displayName": "Tienda"
+                  },
+                  {
+                    "fieldName": "producto",
+                    "displayName": "Producto"
+                  },
+                  {
+                    "fieldName": "categoria",
+                    "displayName": "Categoría"
+                  },
+                  {
+                    "fieldName": "unidades",
+                    "displayName": "Unidades"
+                  },
+                  {
+                    "fieldName": "tickets",
+                    "displayName": "Tickets"
+                  },
+                  {
+                    "fieldName": "ventas",
+                    "displayName": "Ventas netas (€)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Detalle tienda x producto"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 6,
+            "height": 9
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "historico",
+      "displayName": "Histórico",
+      "layout": [
+        {
+          "widget": {
+            "name": "titulo3",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Evolución diaria\n",
+                "Un punto por cada día procesado por el ETL."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "b3_dias",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "historico",
+                  "fields": [
+                    {
+                      "name": "dt",
+                      "expression": "`dt`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ventas`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "dt",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "Día"
+                },
+                "y": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Ventas netas (€)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ventas netas por día"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "l3_ticket",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "historico",
+                  "fields": [
+                    {
+                      "name": "dt",
+                      "expression": "`dt`"
+                    },
+                    {
+                      "name": "valor",
+                      "expression": "SUM(`ticket_medio`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "dt",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Día"
+                },
+                "y": {
+                  "fieldName": "valor",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Ticket medio (€)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ticket medio por día"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "t3_region",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "historico_region",
+                  "fields": [
+                    {
+                      "name": "dt",
+                      "expression": "`dt`"
+                    },
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    },
+                    {
+                      "name": "ventas",
+                      "expression": "`ventas`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "dt",
+                    "displayName": "Día"
+                  },
+                  {
+                    "fieldName": "region",
+                    "displayName": "Región"
+                  },
+                  {
+                    "fieldName": "ventas",
+                    "displayName": "Ventas netas (€)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ventas por día y región"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 6,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ]
+}

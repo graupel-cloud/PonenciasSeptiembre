@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel reputación</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141925;
+    --panel-2: #1b2130;
+    --line: #283044;
+    --text: #eef1f7;
+    --muted: #8f9ab0;
+    --neg: #ff5a5f;
+    --neg-bg: rgba(255, 90, 95, .14);
+    --pos: #34d399;
+    --pos-bg: rgba(52, 211, 153, .14);
+    --neu: #93a4c3;
+    --neu-bg: rgba(147, 164, 195, .14);
+    --unk: #f5b841;
+    --unk-bg: rgba(245, 184, 65, .14);
+    --accent: #7aa2ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 20px; line-height: 1.35;
+    padding: 20px 28px 40px;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 20px;
+  }
+  .title h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.01em; }
+  .title .sub { color: var(--muted); font-size: 20px; margin-top: 4px; }
+  .title .tag { color: var(--accent); font-weight: 600; }
+  .clock { text-align: right; }
+  .clock .time {
+    font-variant-numeric: tabular-nums; font-size: 72px; font-weight: 700; line-height: 1;
+    letter-spacing: -.02em;
+  }
+  .clock .meta { color: var(--muted); font-size: 16px; margin-top: 6px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--unk); margin-right: 6px; vertical-align: middle; }
+  .dot.on { background: var(--pos); }
+
+  .top { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.3fr) minmax(320px, 1.3fr); gap: 16px; margin-bottom: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-height: 150px; }
+  .card h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .counter .big { font-size: 64px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .counter .big small { font-size: 32px; color: var(--muted); font-weight: 600; }
+  .counter .hint { color: var(--muted); font-size: 16px; margin-top: 10px; }
+  .counter.hot .big { color: var(--neg); }
+  .empty { color: var(--muted); font-size: 18px; }
+  .alert-card.active { border-color: var(--neg); background: linear-gradient(180deg, var(--neg-bg), var(--panel) 70%); }
+  .mail-card.active { border-color: var(--pos); background: linear-gradient(180deg, var(--pos-bg), var(--panel) 70%); }
+  .mail-card.failed { border-color: var(--neg); }
+  .mail-card.fallback { border-color: var(--unk); background: linear-gradient(180deg, var(--unk-bg), var(--panel) 70%); }
+  .headline { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+  .detail { color: var(--muted); font-size: 17px; }
+  .detail b { color: var(--text); font-weight: 600; }
+  .flash { animation: flash 1.6s ease-out 1; }
+  @keyframes flash { 0% { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(255,255,255,.18); } 100% { transform: none; box-shadow: none; } }
+
+  .list-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 10px; }
+  .list-head h2 { margin: 0; font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .list-head span { color: var(--muted); font-size: 15px; }
+  ul.posts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  li.post {
+    background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--line);
+    border-radius: 12px; padding: 14px 18px;
+    display: grid; grid-template-columns: 170px 1fr; gap: 6px 18px; align-items: start;
+  }
+  li.post.negative { border-left-color: var(--neg); }
+  li.post.positive { border-left-color: var(--pos); }
+  li.post.neutral  { border-left-color: var(--neu); }
+  li.post.unknown  { border-left-color: var(--unk); }
+  li.post.alerted  { box-shadow: inset 0 0 0 1px var(--neg); }
+  .badge {
+    display: inline-block; padding: 6px 12px; border-radius: 999px; font-weight: 800; font-size: 17px;
+    letter-spacing: .06em; text-align: center; white-space: nowrap;
+  }
+  .badge.negative { color: var(--neg); background: var(--neg-bg); }
+  .badge.positive { color: var(--pos); background: var(--pos-bg); }
+  .badge.neutral  { color: var(--neu); background: var(--neu-bg); }
+  .badge.unknown  { color: var(--unk); background: var(--unk-bg); }
+  .badge.pending  { color: var(--muted); background: var(--panel-2); }
+  .post .text { font-size: 24px; font-weight: 500; word-break: break-word; }
+  .post .author { color: var(--muted); font-size: 16px; margin-top: 2px; }
+  .post .author a { color: var(--accent); text-decoration: none; }
+  .times { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 6px; font-size: 16px; color: var(--muted); }
+  .times span b { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .times .delta { color: var(--accent); margin-left: 4px; font-variant-numeric: tabular-nums; }
+  .times .alert-time b { color: var(--neg); }
+  .srcsim { color: var(--unk); font-size: 13px; margin-left: 8px; }
+
+  @media (max-width: 1100px) { .top { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) {
+    body { padding: 16px; font-size: 17px; }
+    .clock .time { font-size: 48px; }
+    li.post { grid-template-columns: 1fr; }
+    .times { grid-column: 1; }
+    .post .text { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1 id="brand">Panel de reputación</h1>
+    <div class="sub">Vigilando <span class="tag" id="rule">—</span> · alerta con <b id="rule-desc">—</b></div>
+  </div>
+  <div class="clock">
+    <div class="time" id="clock">--:--:--</div>
+    <div class="meta"><span class="dot" id="conn"></span><span id="clock-meta">conectando…</span></div>
+  </div>
+</header>
+
+<section class="top">
+  <div class="card counter" id="counter">
+    <h2>Negativos en la última hora</h2>
+    <div class="big"><span id="neg-count">0</span> <small>/ <span id="neg-threshold">2</span></small></div>
+    <div class="hint" id="counter-hint">&nbsp;</div>
+  </div>
+  <div class="card alert-card" id="alert-card">
+    <h2>Última alerta</h2>
+    <div class="empty" id="alert-empty">Sin alertas todavía.</div>
+    <div id="alert-body" hidden>
+      <div class="headline" id="alert-headline"></div>
+      <div class="detail" id="alert-detail"></div>
+    </div>
+  </div>
+  <div class="card mail-card" id="mail-card">
+    <h2>Correo</h2>
+    <div class="empty" id="mail-empty">Ningún correo enviado.</div>
+    <div id="mail-body" hidden>
+      <div class="headline" id="mail-headline"></div>
+      <div class="detail" id="mail-detail"></div>
+    </div>
+  </div>
+</section>
+
+<div class="list-head"><h2>Posts</h2><span id="post-total"></span></div>
+<ul class="posts" id="posts"></ul>
+
+<script>
+(() => {
+  "use strict";
+  const LABELS = { negative: "NEGATIVO", positive: "POSITIVO", neutral: "NEUTRO", unknown: "SIN CLASIFICAR" };
+  const posts = new Map();   // post_id -> post
+  const alerts = new Map();  // alert_id -> alert
+  let config = { threshold: 2, window_minutes: 60, cooldown_minutes: 5, tz: "UTC", brand: "", rule_value: "" };
+  let offsetMs = 0;          // hora del servidor - hora del navegador
+  let lastAlertShown = null, lastMailShown = null;
+
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d)) return "—";
+    return d.toLocaleTimeString("es-ES", { timeZone: config.tz, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+  function delta(fromIso, toIso) {
+    if (!fromIso || !toIso) return "";
+    const ms = new Date(toIso) - new Date(fromIso);
+    if (!isFinite(ms)) return "";
+    const s = ms / 1000;
+    const txt = Math.abs(s) < 60 ? s.toFixed(1).replace(".", ",") + " s" : Math.round(s / 60) + " min";
+    return (s >= 0 ? "+" : "") + txt;
+  }
+
+  // ------------------------------------------------ reloj
+  function tickClock() {
+    const now = new Date(Date.now() + offsetMs);
+    $("clock").textContent = now.toLocaleTimeString("es-ES", { timeZone: config.tz, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+  setInterval(tickClock, 250);
+
+  // ------------------------------------------------ render
+  function renderHeader() {
+    $("brand").textContent = config.brand ? `El martes en X · ${config.brand}` : "El martes en X";
+    $("rule").textContent = config.rule_value || config.rule_tag || "—";
+    $("rule-desc").textContent = `${config.threshold} negativos nuevos en ${config.window_minutes} min (máx. 1 aviso cada ${config.cooldown_minutes} min)`;
+    $("neg-threshold").textContent = config.threshold;
+  }
+
+  function renderCounter() {
+    // Misma regla que Flink: ventana relativa al post publicado más reciente de la etiqueta.
+    const list = [...posts.values()];
+    if (!list.length) { $("neg-count").textContent = "0"; $("counter-hint").textContent = " "; return; }
+    const latest = list.reduce((a, b) => (a._seq > b._seq ? a : b));
+    const tag = latest.rule_tag;
+    const same = list.filter(p => p.rule_tag === tag && p.published_at);
+    const maxPub = Math.max(...same.map(p => new Date(p.published_at).getTime()));
+    const cutoff = maxPub - config.window_minutes * 60000;
+    const inWin = same.filter(p => new Date(p.published_at).getTime() >= cutoff);
+    const neg = inWin.filter(p => p.sentiment === "negative");
+    const fresh = neg.filter(p => !p.alert_at);
+    $("neg-count").textContent = neg.length;
+    $("counter").classList.toggle("hot", fresh.length >= config.threshold || neg.length >= config.threshold);
+    $("counter-hint").textContent = `Etiqueta «${tag}» · nuevos desde la última alerta: ${fresh.length}`;
+  }
+
+  function postItem(p) {
+    const s = p.sentiment || "pending";
+    const li = el("li", `post ${s}${p.alert_at ? " alerted" : ""}`);
+    li.dataset.id = p.post_id;
+    const left = el("div");
+    left.appendChild(el("span", `badge ${s}`, p.sentiment ? (LABELS[p.sentiment] || p.sentiment.toUpperCase()) : "CLASIFICANDO…"));
+    const right = el("div");
+    right.appendChild(el("div", "text", p.text || ""));
+    const author = el("div", "author");
+    const a = el("a", null, "@" + (p.author_username || "?"));
+    if (p.url && /^https:\/\/(x|twitter)\.com\//.test(p.url)) { a.href = p.url; a.target = "_blank"; a.rel = "noopener noreferrer"; }
+    author.appendChild(a);
+    if (p.source && p.source !== "x") author.appendChild(el("span", "srcsim", `(${p.source})`));
+    right.appendChild(author);
+    li.append(left, right);
+
+    const times = el("div", "times");
+    const item = (label, iso, from, cls) => {
+      const sp = el("span", cls || null, label + " ");
+      sp.appendChild(el("b", null, fmtTime(iso)));
+      const d = from ? delta(from, iso) : "";
+      if (iso && d) sp.appendChild(el("span", "delta", d));
+      times.appendChild(sp);
+    };
+    item("Publicado en X", p.published_at);
+    item("Llegada", p.ingested_at, p.published_at);
+    item("Clasificado", p.classified_at, p.ingested_at);
+    if (p.alert_at) item("Alerta", p.alert_at, p.classified_at, "alert-time");
+    li.appendChild(times);
+    return li;
+  }
+
+  function renderPosts() {
+    const ul = $("posts");
+    const list = [...posts.values()].sort((a, b) => b._seq - a._seq);
+    ul.replaceChildren(...list.map(postItem));
+    $("post-total").textContent = list.length ? `${list.length} posts` : "Esperando posts…";
+    renderCounter();
+  }
+
+  function renderAlert() {
+    const list = [...alerts.values()].filter(a => a.alert_at).sort((a, b) => b._seq - a._seq);
+    const a = list[0];
+    if (!a) return;
+    $("alert-empty").hidden = true; $("alert-body").hidden = false;
+    const card = $("alert-card");
+    card.classList.add("active");
+    const n = a.new_negatives ?? (a.negative_posts || []).length;
+    $("alert-headline").textContent = `${n} negativos nuevos · ${fmtTime(a.alert_at)}`;
+    const det = $("alert-detail");
+    det.replaceChildren();
+    det.append("Etiqueta ", el("b", null, a.rule_tag || "—"), ` · ${a.negatives_in_window ?? n} negativos en ${a.window_minutes} min · primero publicado a las `, el("b", null, fmtTime(a.first_published_at)));
+    if (lastAlertShown !== a.alert_id) { lastAlertShown = a.alert_id; flash(card); }
+
+    const withMail = [...alerts.values()].filter(x => x.notification).sort((x, y) => (y._nseq || 0) - (x._nseq || 0))[0];
+    if (!withMail) return;
+    const n2 = withMail.notification;
+    $("mail-empty").hidden = true; $("mail-body").hidden = false;
+    const mc = $("mail-card");
+    mc.classList.remove("active", "failed", "fallback");
+    const ok = n2.status === "sent";
+    mc.classList.add(!ok ? "failed" : (n2.used_fallback_template ? "fallback" : "active"));
+    $("mail-headline").textContent = ok ? (n2.subject || "Correo enviado") : "Error al enviar el correo";
+    const md = $("mail-detail");
+    md.replaceChildren();
+    md.append(ok ? "Enviado a las " : "Intento a las ", el("b", null, fmtTime(n2.sent_at)), ` · ${(n2.to || []).length} destinatario(s)`);
+    if (n2.used_fallback_template) md.append(" · plantilla fija (Ollama no respondió)");
+    if (!ok && n2.error) md.append(el("div", null, n2.error));
+    if (lastMailShown !== n2.alert_id + n2.status) { lastMailShown = n2.alert_id + n2.status; flash(mc); }
+  }
+
+  function flash(node) { node.classList.remove("flash"); void node.offsetWidth; node.classList.add("flash"); }
+
+  // ------------------------------------------------ datos
+  let seq = 0, nseq = 0;
+  function upsertPost(p) {
+    const prev = posts.get(p.post_id);
+    posts.set(p.post_id, Object.assign(prev || { _seq: ++seq }, p));
+  }
+  function upsertAlert(a) {
+    const prev = alerts.get(a.alert_id);
+    const prevStatus = prev && prev.notification ? prev.notification.status : null;
+    const merged = Object.assign(prev || { _seq: ++seq }, a);
+    if (a.notification && a.notification.status !== prevStatus) merged._nseq = ++nseq;
+    alerts.set(a.alert_id, merged);
+  }
+
+  function connect() {
+    const es = new EventSource("events");
+    es.onopen = () => { $("conn").classList.add("on"); $("clock-meta").textContent = `hora del servidor · ${config.tz}`; };
+    es.onerror = () => { $("conn").classList.remove("on"); $("clock-meta").textContent = "reconectando…"; };
+    es.onmessage = (ev) => {
+      const m = JSON.parse(ev.data);
+      if (m.server_now_ms) offsetMs = m.server_now_ms - Date.now();
+      if (m.type === "snapshot") {
+        config = Object.assign(config, m.config);
+        posts.clear(); alerts.clear(); seq = 0; nseq = 0;
+        m.posts.forEach(upsertPost);
+        m.alerts.forEach(upsertAlert);
+        renderHeader(); renderPosts(); renderAlert();
+        $("clock-meta").textContent = `hora del servidor · ${config.tz}`;
+      } else if (m.type === "post") {
+        upsertPost(m.post); renderPosts();
+      } else if (m.type === "alert") {
+        upsertAlert(m.alert); renderAlert(); renderCounter();
+      }
+    };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>

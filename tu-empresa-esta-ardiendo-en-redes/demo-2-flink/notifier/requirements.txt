@@ -1,0 +1,2 @@
+confluent-kafka==2.15.1
+httpx==0.28.1

@@ -1,0 +1,734 @@
+{
+  "name": "Demo Arde Redes",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4928,
+        192
+      ],
+      "id": "aaf5a9d8-41f2-4822-bf8e-f52b4e020136",
+      "name": "Manual Execution"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "d15e3ca5-a9b2-4935-941c-dab967f336a4",
+      "name": "Cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -4928,
+        0
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "graupel_tweets",
+        "columns": {
+          "column": [
+            {
+              "name": "tweet_id"
+            },
+            {
+              "name": "fecha_hora",
+              "type": "date"
+            },
+            {
+              "name": "autor"
+            },
+            {
+              "name": "contenido"
+            },
+            {
+              "name": "idioma"
+            },
+            {
+              "name": "sentimiento"
+            },
+            {
+              "name": "confianza",
+              "type": "number"
+            },
+            {
+              "name": "tema"
+            },
+            {
+              "name": "motivo"
+            },
+            {
+              "name": "analizado_en",
+              "type": "date"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "id": "aee73a58-fc12-4542-8201-a0f932d0a85f",
+      "name": "Crear tabla si no existe",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -4704,
+        96
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// X exige que end_time sea al menos 10 s anterior a la petición\nconst end = new Date(Date.now() - 30 * 1000);\nconst start = new Date(end.getTime() - 15 * 60 * 1000);\nconst iso = (d) => d.toISOString().replace(/\\.\\d{3}Z$/, 'Z');\n\nreturn [{ json: { query: '#graupel -is:retweet', start_time: iso(start), end_time: iso(end) } }];"
+      },
+      "id": "e7cc7074-7e0a-40a6-b46e-3d67dc5a4123",
+      "name": "Ventana últimos 15 min",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4480,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.x.com/2/tweets/search/recent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "start_time",
+              "value": "={{ $json.start_time }}"
+            },
+            {
+              "name": "end_time",
+              "value": "={{ $json.end_time }}"
+            },
+            {
+              "name": "max_results",
+              "value": "100"
+            },
+            {
+              "name": "sort_order",
+              "value": "recency"
+            },
+            {
+              "name": "tweet.fields",
+              "value": "created_at,author_id,lang"
+            },
+            {
+              "name": "expansions",
+              "value": "author_id"
+            },
+            {
+              "name": "user.fields",
+              "value": "username,name"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2fd9595e-531c-461e-8585-56f49912458a",
+      "name": "X · Buscar #graupel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4256,
+        96
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst users = Object.fromEntries((res.includes?.users ?? []).map((u) => [u.id, u.username]));\n\n// Si no hay tweets nuevos, el flujo se detiene aquí (no hay nada que analizar ni alertar)\nreturn (res.data ?? []).map((t) => ({\n  json: {\n    tweet_id: t.id,\n    fecha_hora: t.created_at,\n    autor: users[t.author_id] ? '@' + users[t.author_id] : t.author_id,\n    contenido: t.text,\n    idioma: t.lang ?? '',\n  },\n}));"
+      },
+      "id": "1d14f930-3ba3-4247-90e7-ebefc51c194f",
+      "name": "Separar tweets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4032,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "graupel_tweets"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "tweet_id",
+              "keyValue": "={{ $json.tweet_id }}"
+            }
+          ]
+        }
+      },
+      "id": "56dce90f-404a-408e-9060-2daf0ceef402",
+      "name": "¿Tweet nuevo?",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -3808,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ollama.com/api/chat",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'deepseek-v4.1-flash',\n  stream: false,\n  think: false,\n  format: 'json',\n  options: { temperature: 0 },\n  messages: [\n    { role: 'system', content: \"Eres un analista de sentimiento de redes sociales. Analiza el tweet y responde UNICAMENTE con un objeto JSON con exactamente estas claves: \\\"sentimiento\\\" (uno de: \\\"positivo\\\", \\\"negativo\\\", \\\"neutro\\\"), \\\"confianza\\\" (numero entre 0 y 1), \\\"tema\\\" (de que habla el tweet, maximo 8 palabras, en espanol), \\\"motivo\\\" (una frase breve en espanol que justifique la clasificacion).\" },\n    { role: 'user', content: 'Tweet: ' + $json.contenido }\n  ]\n}) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 500
+            }
+          }
+        }
+      },
+      "id": "85b4e08d-a32c-47f0-861b-7fb4882ea9ed",
+      "name": "Ollama · Sentimiento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3584,
+        96
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const tweet = $('¿Tweet nuevo?').item.json;\nconst raw = $json.message?.content ?? '';\n\nlet r = {};\ntry {\n  r = JSON.parse(raw);\n} catch (e) {\n  const m = raw.match(/\\{[\\s\\S]*\\}/);\n  if (m) { try { r = JSON.parse(m[0]); } catch (e2) {} }\n}\n\nconst s = String(r.sentimiento ?? '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\nconst sentimiento = s.startsWith('neg') ? 'negativo' : s.startsWith('pos') ? 'positivo' : 'neutro';\nconst confianza = Math.min(1, Math.max(0, Number(r.confianza) || 0));\n\nreturn {\n  json: {\n    tweet_id: tweet.tweet_id,\n    fecha_hora: tweet.fecha_hora,\n    autor: tweet.autor,\n    contenido: tweet.contenido,\n    idioma: tweet.idioma,\n    sentimiento,\n    confianza,\n    tema: String(r.tema ?? ''),\n    motivo: String(r.motivo ?? ''),\n    analizado_en: new Date().toISOString(),\n  },\n};"
+      },
+      "id": "aabfa746-1af7-48e3-b606-afb58593d0a7",
+      "name": "Normalizar resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3360,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "graupel_tweets"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "tweet_id": "={{ $json.tweet_id }}",
+            "fecha_hora": "={{ $json.fecha_hora }}",
+            "autor": "={{ $json.autor }}",
+            "contenido": "={{ $json.contenido }}",
+            "idioma": "={{ $json.idioma }}",
+            "sentimiento": "={{ $json.sentimiento }}",
+            "confianza": "={{ $json.confianza }}",
+            "tema": "={{ $json.tema }}",
+            "motivo": "={{ $json.motivo }}",
+            "analizado_en": "={{ $json.analizado_en }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "tweet_id",
+              "displayName": "tweet_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fecha_hora",
+              "displayName": "fecha_hora",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "autor",
+              "displayName": "autor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "contenido",
+              "displayName": "contenido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "idioma",
+              "displayName": "idioma",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sentimiento",
+              "displayName": "sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "confianza",
+              "displayName": "confianza",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "tema",
+              "displayName": "tema",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "analizado_en",
+              "displayName": "analizado_en",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "8836c99d-5af9-467c-b371-0a38e829811c",
+      "name": "Guardar en tabla",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -3136,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "graupel_tweets"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "fecha_hora",
+              "condition": "gte",
+              "keyValue": "={{ $now.minus({ minutes: 60 }).toISO() }}"
+            }
+          ]
+        },
+        "returnAll": true,
+        "orderBy": true,
+        "orderByColumn": "fecha_hora"
+      },
+      "id": "9f1c34eb-d34b-4704-9f2a-0ebac71de5f7",
+      "name": "Tweets últimos 60 min",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -2912,
+        96
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const UMBRAL_NEGATIVOS = 2;\n\nconst filas = $input.all().map((i) => i.json).filter((r) => r.tweet_id);\nconst negativos = filas.filter((r) => r.sentimiento === 'negativo');\n\n// Solo alertamos si en esta ejecución ha entrado algún negativo nuevo,\n// para no repetir el mismo email cada 15 minutos con los mismos tweets.\nconst nuevos = new Set($('Normalizar resultado').all().map((i) => i.json.tweet_id));\nconst hayNegativoNuevo = negativos.some((r) => nuevos.has(r.tweet_id));\n\nconst hora = (iso) => DateTime.fromISO(String(iso)).setZone('Europe/Madrid').toFormat('dd/MM HH:mm');\n\nreturn [{\n  json: {\n    alerta: negativos.length >= UMBRAL_NEGATIVOS && hayNegativoNuevo,\n    umbral: UMBRAL_NEGATIVOS,\n    total_tweets: filas.length,\n    total_negativos: negativos.length,\n    total_positivos: filas.filter((r) => r.sentimiento === 'positivo').length,\n    total_neutros: filas.filter((r) => r.sentimiento === 'neutro').length,\n    negativos: negativos.map((r) => ({\n      tweet_id: r.tweet_id,\n      hora: hora(r.fecha_hora),\n      autor: r.autor,\n      contenido: r.contenido,\n      tema: r.tema,\n      motivo: r.motivo,\n      url: `https://x.com/i/web/status/${r.tweet_id}`,\n    })),\n  },\n}];"
+      },
+      "id": "7e6b44a4-83c3-4e9e-960c-88c785ed00f6",
+      "name": "Evaluar alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2688,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d46db4de-f53a-43d4-b65b-216f59e6061f",
+              "leftValue": "={{ $json.alerta }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8539e2f0-d850-4c52-9038-140a08231609",
+      "name": "¿≥ 2 negativos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2464,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ollama.com/api/chat",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'deepseek-v4.1-flash',\n  stream: false,\n  think: false,\n  format: 'json',\n  options: { temperature: 0.3 },\n  messages: [\n    { role: 'system', content: \"Eres un analista de reputacion online. Recibiras un resumen de tweets con el hashtag #graupel de la ultima hora y la lista de tweets clasificados como negativos. Redacta una alerta breve en espanol para el equipo. Responde UNICAMENTE con un objeto JSON con las claves: \\\"asunto\\\" (asunto del email, maximo 80 caracteres, debe incluir el numero de tweets negativos) y \\\"resumen_html\\\" (2 a 4 parrafos cortos en HTML usando solo <p>, <b> y <ul><li>, explicando cuantos negativos ha habido, de que estan hablando, los temas o quejas comunes y una recomendacion de accion).\" },\n    { role: 'user', content: JSON.stringify({\n        ventana: 'ultimos 60 minutos',\n        total_tweets: $json.total_tweets,\n        negativos: $json.total_negativos,\n        positivos: $json.total_positivos,\n        neutros: $json.total_neutros,\n        tweets_negativos: $json.negativos.map(t => ({ hora: t.hora, autor: t.autor, texto: t.contenido, tema: t.tema, motivo: t.motivo }))\n      }) }\n  ]\n}) }}",
+        "options": {}
+      },
+      "id": "30cd6e46-ad6a-444f-bdfa-218be9cf7806",
+      "name": "Ollama · Redactar alerta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2240,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Evaluar alerta').first().json;\nconst raw = $input.first().json.message?.content ?? '';\n\nlet ia = {};\ntry { ia = JSON.parse(raw); } catch (e) {\n  const m = raw.match(/\\{[\\s\\S]*\\}/);\n  if (m) { try { ia = JSON.parse(m[0]); } catch (e2) {} }\n}\n\nconst esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst asunto = ia.asunto || `⚠️ #graupel: ${d.total_negativos} tweets negativos en la última hora`;\nconst resumen = ia.resumen_html || `<p>Se han detectado <b>${d.total_negativos}</b> tweets negativos sobre #graupel en los últimos 60 minutos.</p>`;\n\nconst filas = d.negativos.map((t) => `\n  <tr>\n    <td style=\"padding:6px;border-bottom:1px solid #eee;white-space:nowrap\">${esc(t.hora)}</td>\n    <td style=\"padding:6px;border-bottom:1px solid #eee\">${esc(t.autor)}</td>\n    <td style=\"padding:6px;border-bottom:1px solid #eee\">${esc(t.contenido)}<br><small style=\"color:#888\">${esc(t.tema)}</small></td>\n    <td style=\"padding:6px;border-bottom:1px solid #eee\"><a href=\"${t.url}\">Ver</a></td>\n  </tr>`).join('');\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:720px\">\n  <h2 style=\"color:#c0392b;margin-bottom:4px\">Alerta de sentimiento · #graupel</h2>\n  <p style=\"color:#666;margin-top:0\">Últimos 60 min: ${d.total_tweets} tweets · <b style=\"color:#c0392b\">${d.total_negativos} negativos</b> · ${d.total_neutros} neutros · ${d.total_positivos} positivos</p>\n  ${resumen}\n  <h3>Tweets negativos</h3>\n  <table style=\"border-collapse:collapse;width:100%;font-size:13px\">\n    <tr style=\"text-align:left;background:#f6f6f6\"><th style=\"padding:6px\">Hora</th><th style=\"padding:6px\">Autor</th><th style=\"padding:6px\">Tweet</th><th style=\"padding:6px\"></th></tr>\n    ${filas}\n  </table>\n</div>`;\n\nreturn [{ json: { asunto, html } }];"
+      },
+      "id": "7a856e81-befb-467b-821d-4fbbe36be8fc",
+      "name": "Preparar email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2016,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "destinatario@ejemplo.com",
+        "subject": "={{ $json.asunto }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "64249023-ab82-4807-a3c6-a3a1753ab56c",
+      "name": "Enviar alerta (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -1792,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4e6e6064-58c8-4bfa-884e-453f4b6c88b7",
+      "name": "Sin alerta",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -2240,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Demo Arde Redes · #graupel\n\n**Configuración tras importar**\n\n1. **X · Buscar #graupel** → credencial *Header Auth*\n   - Name: `Authorization`\n   - Value: `Bearer <TU_X_BEARER_TOKEN>`\n2. **Ollama · Sentimiento** y **Ollama · Redactar alerta** → credencial *Header Auth*\n   - Name: `Authorization`\n   - Value: `Bearer <TU_OLLAMA_API_KEY>`\n3. **Enviar alerta (Gmail)** → credencial Gmail OAuth2 y cambia `destinatario@ejemplo.com`.\n\nLa Data Table `graupel_tweets` se crea sola en la primera ejecución.\nEl trigger de 15 min está desactivado: actívalo y publica el workflow para que corra solo.",
+        "height": 420,
+        "width": 460,
+        "color": 4
+      },
+      "id": "0b6f2c1e-6a4d-4c1f-9b0e-3f5a7d2c8e11",
+      "name": "Nota · Configuración",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -5440,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Execution": {
+      "main": [
+        [
+          {
+            "node": "Crear tabla si no existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Crear tabla si no existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear tabla si no existe": {
+      "main": [
+        [
+          {
+            "node": "Ventana últimos 15 min",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ventana últimos 15 min": {
+      "main": [
+        [
+          {
+            "node": "X · Buscar #graupel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "X · Buscar #graupel": {
+      "main": [
+        [
+          {
+            "node": "Separar tweets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar tweets": {
+      "main": [
+        [
+          {
+            "node": "¿Tweet nuevo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tweet nuevo?": {
+      "main": [
+        [
+          {
+            "node": "Ollama · Sentimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama · Sentimiento": {
+      "main": [
+        [
+          {
+            "node": "Normalizar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar resultado": {
+      "main": [
+        [
+          {
+            "node": "Guardar en tabla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar en tabla": {
+      "main": [
+        [
+          {
+            "node": "Tweets últimos 60 min",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tweets últimos 60 min": {
+      "main": [
+        [
+          {
+            "node": "Evaluar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluar alerta": {
+      "main": [
+        [
+          {
+            "node": "¿≥ 2 negativos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿≥ 2 negativos?": {
+      "main": [
+        [
+          {
+            "node": "Ollama · Redactar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama · Redactar alerta": {
+      "main": [
+        [
+          {
+            "node": "Preparar email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar email": {
+      "main": [
+        [
+          {
+            "node": "Enviar alerta (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

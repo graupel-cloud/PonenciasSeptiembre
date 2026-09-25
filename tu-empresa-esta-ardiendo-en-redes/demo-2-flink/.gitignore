@@ -1,0 +1,14 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Compilación
+flink-job/target/
+__pycache__/
+*.pyc
+
+# Sistema / IDE
+.DS_Store
+.idea/
+.vscode/

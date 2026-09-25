@@ -1,0 +1,230 @@
+# Demo "El martes en X": X -> Kafka -> Flink (Ollama) -> alertas -> correo, con panel en directo.
+# Todo en un nodo. Límites de memoria pensados para un VPS de 4 vCPU / 8 GB.
+name: martes-en-x
+
+x-flink-image: &flink-image
+  image: martes-en-x/flink-job:latest
+  build:
+    context: ./flink-job
+
+x-flink-env: &flink-env
+  JOB_MANAGER_RPC_ADDRESS: jobmanager
+  KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+  KAFKA_START_FROM: ${KAFKA_START_FROM:-latest}
+  BRAND_NAME: ${BRAND_NAME:-Marca Demo}
+  NEGATIVE_THRESHOLD: ${NEGATIVE_THRESHOLD:-2}
+  WINDOW_MINUTES: ${WINDOW_MINUTES:-60}
+  COOLDOWN_MINUTES: ${COOLDOWN_MINUTES:-5}
+  OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com/api}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-v4.1-flash}
+  OLLAMA_THINK: ${OLLAMA_THINK:-false}
+  TZ: ${TZ:-UTC}
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "3" }
+
+services:
+  kafka:
+    image: apache/kafka:4.3.1
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms1g -Xmx1g
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      TZ: ${TZ:-UTC}
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 20s
+      retries: 12
+      start_period: 20s
+    mem_limit: 1536m
+    logging: *logging
+
+  kafka-init:
+    image: apache/kafka:4.3.1
+    depends_on:
+      kafka: { condition: service_healthy }
+    environment:
+      KAFKA_HEAP_OPTS: -Xmx256m
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        for t in x.posts.raw x.posts.scored alerts notifications; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+            --topic "$$t" --partitions 1 --replication-factor 1 --config retention.ms=604800000
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+    restart: "no"
+    logging: *logging
+
+  jobmanager:
+    <<: *flink-image
+    restart: unless-stopped
+    entrypoint: ["/opt/flink/bin/start-jobmanager.sh"]
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    environment:
+      <<: *flink-env
+      FLINK_JOB_ID: "00000000000000000000000000000001"
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        jobmanager.memory.process.size: 1024m
+        parallelism.default: 1
+        rest.bind-address: 0.0.0.0
+        rest.address: jobmanager
+        state.backend.type: hashmap
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        state.checkpoints.num-retained: 3
+        execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+        web.submit.enable: false
+        web.cancel.enable: false
+        web.rescale.enable: false
+    ports:
+      - "127.0.0.1:8081:8081"   # interfaz de Flink: solo por túnel SSH
+    volumes:
+      - flink-checkpoints:/opt/flink/checkpoints
+    mem_limit: 1280m
+    logging: *logging
+
+  taskmanager:
+    <<: *flink-image
+    restart: unless-stopped
+    command: taskmanager
+    depends_on:
+      - jobmanager
+    environment:
+      <<: *flink-env
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        taskmanager.memory.process.size: 2048m
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 1
+        state.backend.type: hashmap
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+    volumes:
+      - flink-checkpoints:/opt/flink/checkpoints
+    mem_limit: 2560m
+    logging: *logging
+
+  ingest:
+    build: ./ingest
+    restart: unless-stopped
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    environment:
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
+      X_RULE_VALUE: ${X_RULE_VALUE:-}
+      X_RULE_TAG: ${X_RULE_TAG:-demo}
+      X_STALL_TIMEOUT_SECONDS: ${X_STALL_TIMEOUT_SECONDS:-30}
+      X_INGEST_ENABLED: ${X_INGEST_ENABLED:-true}
+      TZ: ${TZ:-UTC}
+    mem_limit: 256m
+    logging: *logging
+
+  notifier:
+    build: ./notifier
+    restart: unless-stopped
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    environment:
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com/api}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-v4.1-flash}
+      OLLAMA_THINK: ${OLLAMA_THINK:-false}
+      BRAND_NAME: ${BRAND_NAME:-Marca Demo}
+      X_RULE_VALUE: ${X_RULE_VALUE:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - notifier-data:/data
+    mem_limit: 256m
+    logging: *logging
+
+  panel:
+    build: ./panel
+    restart: unless-stopped
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    environment:
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+      BRAND_NAME: ${BRAND_NAME:-Marca Demo}
+      X_RULE_VALUE: ${X_RULE_VALUE:-}
+      X_RULE_TAG: ${X_RULE_TAG:-demo}
+      NEGATIVE_THRESHOLD: ${NEGATIVE_THRESHOLD:-2}
+      WINDOW_MINUTES: ${WINDOW_MINUTES:-60}
+      COOLDOWN_MINUTES: ${COOLDOWN_MINUTES:-5}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "127.0.0.1:8080:8080"   # panel: por túnel SSH (o por HTTPS con el perfil "public")
+    mem_limit: 256m
+    logging: *logging
+
+  # Opcional (COMPOSE_PROFILES=public): panel en https://PANEL_DOMAIN y, si se define FLINK_DOMAIN,
+  # la interfaz de Flink en solo lectura en https://FLINK_DOMAIN. Ambos con usuario y contraseña.
+  caddy:
+    image: caddy:2.11.4-alpine
+    profiles: ["public"]
+    restart: unless-stopped
+    depends_on:
+      - panel
+      - jobmanager
+    environment:
+      PANEL_DOMAIN: ${PANEL_DOMAIN:-}
+      PANEL_USER: ${PANEL_USER:-demo}
+      PANEL_PASSWORD_HASH: ${PANEL_PASSWORD_HASH:-}
+      FLINK_DOMAIN: ${FLINK_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    mem_limit: 128m
+    logging: *logging
+
+  # Herramienta: docker compose run --rm simulate <escenario>
+  simulate:
+    build: ./tools
+    profiles: ["tools"]
+    environment:
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+      X_RULE_VALUE: ${X_RULE_VALUE:-}
+      COOLDOWN_MINUTES: ${COOLDOWN_MINUTES:-5}
+    logging: *logging
+
+volumes:
+  kafka-data:
+  flink-checkpoints:
+  notifier-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,19 @@
+# Secretos: nunca al repo
+.env
+.env.*
+!.env.example
+*.env
+.databrickscfg
+*.pem
+*.key
+.panel-password.txt
+
+# Compilación / caché
+target/
+__pycache__/
+*.pyc
+
+# Sistema / IDE
+.DS_Store
+.idea/
+.vscode/
